@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QCM AI Solver</title>
+  <link rel="stylesheet" href="popup.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet" />
+</head>
+
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo">
+        <span class="logo-dot"></span>
+        <span class="logo-dot"></span>
+        <span class="logo-dot"></span>
+      </div>
+      <div>
+        <h1>QCM Solver</h1>
+        <p class="subtitle">Groq AI Engine</p>
+      </div>
+    </div>
+
+    <!-- Active Solve Controls -->
+    <div class="card active-solve-card">
+      <div class="status-row">
+        <span class="status-label">Page Status</span>
+        <span id="pageQuestionsCount" class="badge">Checking...</span>
+      </div>
+      <button id="solvePageBtn" class="action-btn">Solve Entire Page</button>
+    </div>
+
+    <!-- Main Settings Form -->
+    <div class="card">
+      <div class="field">
+        <label for="apiKey">Groq API Key</label>
+        <div class="input-row">
+          <input type="password" id="apiKey" placeholder="gsk_..." autocomplete="off" />
+          <button id="toggleKey" class="icon-btn" title="Show/Hide">👁</button>
+        </div>
+        <span class="hint"><a href="https://console.groq.com/keys" target="_blank">Get free key →</a></span>
+      </div>
+
+      <div class="field">
+        <label for="model">AI Model</label>
+        <select id="model">
+          <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B (Best Choice ⭐)</option>
+          <option value="deepseek-r1-distill-llama-70b">DeepSeek R1 70B (Reasoning 🧠)</option>
+          <option value="llama-3.1-8b-instant">LLaMA 3.1 8B (Fastest ⚡)</option>
+          <option value="mixtral-8x7b-32768">Mixtral 8x7B (Versatile 🌀)</option>
+          <option value="gemma2-9b-it">Gemma 2 9B (Lightweight 💎)</option>
+        </select>
+      </div>
+
+      <!-- Auto Mode Switch -->
+      <div class="field-row">
+        <div class="field-desc">
+          <span class="field-title">Auto-Solve Page</span>
+          <span class="field-hint">Solve questions automatically on load</span>
+        </div>
+        <label class="switch">
+          <input type="checkbox" id="autoMode" />
+          <span class="slider"></span>
+        </label>
+      </div>
+
+      <button id="saveBtn" class="save-btn">Save Settings</button>
+      <div id="status" class="status-msg hidden"></div>
+    </div>
+
+    <!-- AI Explanation Card (Hidden by default, shown when explanation exists) -->
+    <div id="explanationCard" class="card explanation-card hidden">
+      <div class="explanation-header">
+        <span class="explanation-title">Last Solved Explanation</span>
+        <span class="explanation-sub">Step-by-Step AI Reasoning</span>
+      </div>
+      <div class="explanation-content">
+        <div class="question-quote">
+          <strong>Q:</strong> <span id="expQuestion">...</span>
+        </div>
+        <div class="explanation-reasoning">
+          <strong>Answers:</strong> <span id="expAnswers" class="exp-answers-badge">...</span>
+          <p id="expText">...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Footer / Guide -->
+    <div class="footer">
+      <div class="shortcut-tip">
+        Shortcut: Select question + options → Press <kbd>Ctrl</kbd><kbd>W</kbd>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+
+</html>

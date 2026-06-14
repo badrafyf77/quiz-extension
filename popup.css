@@ -1,0 +1,476 @@
+/* popup.css — QCM AI Solver Design System */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 340px;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  background: radial-gradient(circle at top right, #1a153b, #090a0f 60%);
+  color: #f3f4f6;
+  min-height: 480px;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 5px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(0,0,0,0.2);
+}
+::-webkit-scrollbar-thumb {
+  background: #27272a;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #3f3f46;
+}
+
+.container {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Header */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 6px;
+}
+
+.logo {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.logo-dot {
+  display: block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #8b5cf6;
+  box-shadow: 0 0 10px #8b5cf6;
+}
+
+.logo-dot:nth-child(2) {
+  background: #6366f1;
+  box-shadow: 0 0 10px #6366f1;
+  opacity: 0.7;
+}
+
+.logo-dot:nth-child(3) {
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  opacity: 0.5;
+}
+
+.header h1 {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  background: linear-gradient(135deg, #fff, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.subtitle {
+  font-size: 9px;
+  color: #8b5cf6;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-top: 1px;
+}
+
+/* Card base */
+.card {
+  background: rgba(22, 24, 33, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.25);
+}
+
+/* Solve Card Specific */
+.active-solve-card {
+  border: 1px solid rgba(99, 102, 241, 0.25);
+  background: rgba(22, 24, 33, 0.85);
+}
+
+.status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.status-label {
+  font-size: 11px;
+  color: #9ca3af;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.badge {
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #c7d2fe;
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 20px;
+}
+
+.badge.detected {
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #a7f3d0;
+}
+
+.action-btn {
+  background: linear-gradient(135deg, #4f46e5, #7c3aed);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px;
+  cursor: pointer;
+  transition: transform 0.15s, opacity 0.15s, box-shadow 0.15s;
+  box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
+}
+
+.action-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(124, 58, 237, 0.45);
+}
+
+.action-btn:active {
+  transform: translateY(1px);
+}
+
+.action-btn:disabled {
+  background: #27272a;
+  border: 1px solid rgba(255,255,255,0.05);
+  color: #52525b;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+
+/* Fields */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.field label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  color: #9ca3af;
+}
+
+.field input[type="password"],
+.field input[type="text"],
+.field select {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #f3f4f6;
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 10px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  width: 100%;
+}
+
+.field input:focus, .field select:focus {
+  border-color: #8b5cf6;
+  box-shadow: 0 0 0 2px rgba(139, 92, 246, 0.15);
+}
+
+.field select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%239ca3af'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+
+.input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.input-row input {
+  flex: 1;
+}
+
+.icon-btn {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: #9ca3af;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 8px 10px;
+  line-height: 1;
+  transition: all 0.2s;
+}
+
+.icon-btn:hover {
+  color: #f3f4f6;
+  background: rgba(255,255,255,0.1);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.hint {
+  font-size: 10px;
+  color: #6b7280;
+  margin-top: 1px;
+}
+
+.hint a {
+  color: #8b5cf6;
+  text-decoration: none;
+  transition: color 0.15s;
+}
+
+.hint a:hover {
+  color: #a78bfa;
+}
+
+/* Switch & Field Row */
+.field-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 4px 0;
+}
+
+.field-desc {
+  display: flex;
+  flex-direction: column;
+}
+
+.field-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: #f3f4f6;
+}
+
+.field-hint {
+  font-size: 10px;
+  color: #6b7280;
+}
+
+.switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 20px;
+}
+
+.switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.slider {
+  position: absolute;
+  cursor: pointer;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: #3f3f46;
+  transition: .3s;
+  border-radius: 20px;
+}
+
+.slider:before {
+  position: absolute;
+  content: "";
+  height: 14px;
+  width: 14px;
+  left: 3px;
+  bottom: 3px;
+  background-color: white;
+  transition: .3s;
+  border-radius: 50%;
+}
+
+input:checked + .slider {
+  background-color: #10b981;
+}
+
+input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+/* Save Settings Button */
+.save-btn {
+  background: #f3f4f6;
+  color: #090a0f;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
+  margin-top: 4px;
+}
+
+.save-btn:hover {
+  background: #fff;
+}
+
+.save-btn:active {
+  transform: scale(0.98);
+}
+
+/* Status Msg */
+.status-msg {
+  font-size: 11px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  text-align: center;
+  animation: fadeIn 0.2s ease;
+  font-weight: 500;
+}
+
+.status-msg.success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.status-msg.error {
+  background: rgba(239, 68, 68, 0.12);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Explanation Card */
+.explanation-card {
+  border: 1px solid rgba(139, 92, 246, 0.2);
+}
+
+.explanation-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  padding-bottom: 6px;
+  margin-bottom: 2px;
+}
+
+.explanation-title {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a78bfa;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: block;
+}
+
+.explanation-sub {
+  font-size: 9px;
+  color: #6b7280;
+}
+
+.explanation-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.question-quote {
+  font-size: 11px;
+  color: #9ca3af;
+  line-height: 1.4;
+  padding: 6px 10px;
+  background: rgba(0,0,0,0.15);
+  border-left: 2px solid #6366f1;
+  border-radius: 0 6px 6px 0;
+  max-height: 60px;
+  overflow-y: auto;
+}
+
+.explanation-reasoning {
+  font-size: 11px;
+  color: #d1d5db;
+  line-height: 1.5;
+}
+
+.exp-answers-badge {
+  font-weight: 700;
+  color: #10b981;
+  font-size: 12px;
+  margin-left: 4px;
+}
+
+#expText {
+  margin-top: 4px;
+  max-height: 110px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+/* Footer */
+.footer {
+  text-align: center;
+  padding-top: 4px;
+}
+
+.shortcut-tip {
+  font-size: 10px;
+  color: #4b5563;
+  line-height: 1.5;
+}
+
+kbd {
+  display: inline-block;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-size: 9px;
+  color: #9ca3af;
+  margin: 0 1px;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
