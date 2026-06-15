@@ -54,6 +54,67 @@
     return null;
   }
 
+  // ── Helper: Extract Rich Text (Math, Tables, Images, Code Blocks) ────────────
+  function extractRichText(element) {
+    if (!element) return "";
+    
+    // Clone node so we don't modify the visible page DOM
+    const clone = element.cloneNode(true);
+    
+    // 1. Process MathJax formulas (standard in Moodle and custom pages)
+    clone.querySelectorAll('.MathJax, [id^="MathJax-Element"]').forEach(math => {
+      const script = math.querySelector('script[type^="math/tex"]');
+      if (script) {
+        const replacement = document.createTextNode(` $${script.textContent.trim()}$ `);
+        math.parentNode.replaceChild(replacement, math);
+      }
+    });
+
+    // 2. Process KaTeX math formulas (common in Canvas and modern quiz platforms)
+    clone.querySelectorAll('.katex').forEach(math => {
+      const annotation = math.querySelector('annotation[encoding="application/x-tex"]');
+      if (annotation) {
+        const replacement = document.createTextNode(` $${annotation.textContent.trim()}$ `);
+        math.parentNode.replaceChild(replacement, math);
+      }
+    });
+
+    // 3. Process tables to structured Markdown text
+    clone.querySelectorAll('table').forEach(table => {
+      const rows = Array.from(table.querySelectorAll('tr'));
+      let mdTable = "\n";
+      rows.forEach(tr => {
+        const cells = Array.from(tr.querySelectorAll('th, td')).map(cell => cell.innerText.trim());
+        if (cells.length > 0) {
+          mdTable += "| " + cells.join(" | ") + " |\n";
+        }
+      });
+      const replacement = document.createTextNode(mdTable);
+      table.parentNode.replaceChild(replacement, table);
+    });
+
+    // 4. Process code blocks to keep their formatting
+    clone.querySelectorAll('pre, code').forEach(code => {
+      // Avoid nesting if a code block is inside a pre
+      if (code.tagName === "CODE" && code.parentElement.tagName === "PRE") return;
+      const text = code.innerText.trim();
+      if (text) {
+        const replacement = document.createTextNode(`\n\`\`\`\n${text}\n\`\`\`\n`);
+        code.parentNode.replaceChild(replacement, code);
+      }
+    });
+
+    // 5. Process images to extract their alt text
+    clone.querySelectorAll('img').forEach(img => {
+      const alt = img.alt ? img.alt.trim() : "";
+      const src = img.src ? img.src.split('/').pop() : "";
+      const replacement = document.createTextNode(` [Image: ${alt || src || 'unnamed'}] `);
+      img.parentNode.replaceChild(replacement, img);
+    });
+
+    return clone.innerText.trim();
+  }
+
   // ── DOM QCM Scanner ──────────────────────────────────────────────────────────
   function scanQuestions() {
     const containers = [];
@@ -64,7 +125,7 @@
       ".que.multichoice, .que.truefalse, .que.match, .que.multianswer", // Moodle
       ".question.display_question, .quiz-question", // Canvas
       "fieldset", // Generic HTML fieldsets
-      "[role=\"radiogroup\"]", // ARIA radiogroups
+      "[role=\"radiogroup\"]", // ARIA
       ".question-container, .quiz-container, .q-card" // Custom platforms
     ];
 
@@ -106,21 +167,14 @@
         return;
       }
 
-      // Find Question Text
+      // Find Question Text (Rich Parsing)
       let questionText = "";
       const qTextEl = container.querySelector(".qtext, .question_text, .M7yDu, legend, .question-title, .question-header, h2, h3, h4, h5");
       if (qTextEl) {
-        questionText = qTextEl.innerText.trim();
+        questionText = extractRichText(qTextEl);
       } else {
-        const walk = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-        let n;
-        while ((n = walk.nextNode())) {
-          const t = n.textContent.trim();
-          if (t && t.length > 10) {
-            questionText = t;
-            break;
-          }
-        }
+        // Fallback: extract rich contents of the container's top-level text nodes
+        questionText = extractRichText(container).split('\n')[0] || "Question";
       }
 
       if (!questionText || questionText.length < 5) return;
@@ -151,7 +205,7 @@
 
       const choices = [];
       filteredCandidates.forEach((el, index) => {
-        let text = el.innerText.trim();
+        let text = extractRichText(el);
         const labelPattern = /^([A-Za-z][\.\)]\s*|[0-9]+[\.\)]\s*|[-•–]\s+|\[[ xX]?\]\s*|\([ xX*]?\)\s*)/;
         text = text.replace(labelPattern, "").trim();
 
@@ -191,7 +245,16 @@
       try {
         const result = await chrome.runtime.sendMessage({
           type: "ASK_GROQ",
-          payload: { question: qObj.questionText, choices: qObj.choices, apiKey, model }
+          payload: { 
+            question: qObj.questionText, 
+            choices: qObj.choices, 
+            apiKey, 
+            model,
+            context: {
+              title: document.title || "",
+              domain: window.location.hostname || ""
+            }
+          }
         });
 
         if (result.success) {
@@ -281,7 +344,16 @@
     try {
       const result = await chrome.runtime.sendMessage({
         type: "ASK_GROQ",
-        payload: { question: parsed.question, choices: parsed.choices, apiKey, model }
+        payload: { 
+          question: parsed.question, 
+          choices: parsed.choices, 
+          apiKey, 
+          model,
+          context: {
+            title: document.title || "",
+            domain: window.location.hostname || ""
+          }
+        }
       });
 
       if (!result.success) {
@@ -328,7 +400,6 @@
 
   // ── Mark Answers In DOM ──────────────────────────────────────────────────────
   function markAnswersInDOM(selection, parsed, letters) {
-    // Clean old markers
     document.querySelectorAll("[data-qcm-dot]").forEach(el => el.remove());
     document.querySelectorAll("[data-qcm-highlight]").forEach(el => {
       el.removeAttribute("data-qcm-highlight");
@@ -404,13 +475,12 @@
     dot.setAttribute("data-qcm-dot", "true");
     dot.title = "AI answer";
 
-    // Adaptive color scheme (dark dot on light site, light dot on dark site)
     const isDarkMode = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
-    const dotColor = isDarkMode ? "#e4e4e7" : "#18181b"; // Extremely stealthy dark zinc/light gray dot
+    const dotColor = isDarkMode ? "#e4e4e7" : "#18181b";
 
     Object.assign(dot.style, {
       display: "inline-block",
-      width: "5px", // Tiny dot
+      width: "5px",
       height: "5px",
       borderRadius: "50%",
       backgroundColor: dotColor,

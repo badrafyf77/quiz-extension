@@ -10,19 +10,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleGroqRequest({ question, choices, apiKey, model }) {
+async function handleGroqRequest({ question, choices, apiKey, model, context }) {
   const choiceLines = choices
     .map((c, i) => `${String.fromCharCode(65 + i)}) ${c.text}`)
     .join("\n");
 
   const systemPrompt = `You are an elite academic assistant designed to solve multiple-choice questions with perfect accuracy.
-Analyze the question and choices step-by-step.
-First, provide a brief, concise explanation (1-3 sentences) showing your step-by-step reasoning.
+First, perform a detailed step-by-step analysis of the question, evaluate each answer choice, and eliminate incorrect options logically. Write out your reasoning fully and clearly.
 Second, state the final correct choice(s) using capital letters inside <answer>...</answer> tags.
 If there are multiple correct choices, list them separated by commas (e.g., <answer>A,C</answer>).
 Under no circumstances should you put anything else inside the <answer> tags.`;
 
-  const userPrompt = `Question: ${question}
+  let contextStr = "";
+  if (context && (context.title || context.domain)) {
+    contextStr = `Context: This question is part of a quiz on the website "${context.domain || 'unknown'}" titled "${context.title || 'unknown'}".\n\n`;
+  }
+
+  const userPrompt = `${contextStr}Question: ${question}
 
 Choices:
 ${choiceLines}
@@ -42,7 +46,7 @@ Let's think step-by-step:`;
         { role: "user", content: userPrompt }
       ],
       temperature: 0.1,
-      max_tokens: 1000
+      max_tokens: 1200
     })
   });
 
