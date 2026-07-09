@@ -1,6 +1,7 @@
 // content.js — QCM Solver
-// Scans/solves quizzes automatically or manually, and supports Ctrl/Ctrl+W selection solving.
-// Runs completely silently in the background — no toasts or highlight colors.
+// Scans/solves quizzes automatically or manually, and supports a standalone Ctrl tap for selection solving.
+// MCQ answers are marked with a silent dot; write-in/essay answers are typed directly into the
+// field when possible, or shown as an on-page floating toast when the field can't be filled.
 
 (function () {
   "use strict";
@@ -10,12 +11,16 @@
   let autoMode = false;
   let isScanningAndSolving = false;
 
+  const LOG = "[QCM Solver]";
+  console.log(`${LOG} content script loaded — frame: ${window === window.top ? "top" : "iframe"} — url: ${location.href}`);
+
   // ── Load settings ────────────────────────────────────────────────────────────
   function loadSettings(callback) {
     chrome.storage.sync.get(["groqApiKey", "groqModel", "autoMode"], (r) => {
       apiKey = r.groqApiKey || "";
       model  = r.groqModel  || "llama-3.3-70b-versatile";
       autoMode = !!r.autoMode;
+      console.log(`${LOG} settings loaded — apiKey set: ${!!apiKey}, model: ${model}, autoMode: ${autoMode}`);
       if (callback) callback();
     });
   }
@@ -228,6 +233,246 @@
     return parsedQuestions;
   }
 
+  // ── Guard: filter out fields that clearly aren't quiz answer fields ──────────
+  // Prevents the generic scanner from grabbing site search boxes, login/email
+  // fields, newsletter signups, etc. and stuffing an AI answer into them.
+  const NON_ANSWER_FIELD_PATTERN = /search|login|log-in|signin|sign-in|email|e-mail|password|passwd|pwd|user(-?name)?|subscribe|newsletter|comment|captcha|^q$|query|promo|coupon/i;
+  function isLikelyAnswerField(field) {
+    const probe = [field.name, field.id, field.placeholder, field.getAttribute("autocomplete")]
+      .filter(Boolean)
+      .join(" ");
+    return !NON_ANSWER_FIELD_PATTERN.test(probe);
+  }
+
+  // ── DOM Essay/"Rédaction" Scanner (open-ended, no fixed choices) ─────────────
+  function scanEssayQuestions() {
+    const containers = [];
+
+    const selectors = [
+      ".que.essay", // Moodle essay question
+      ".question.display_question.essay_question, .question.display_question.short_answer_question", // Canvas
+      ".essay-question, .open-question, .short-answer, .free-text-question" // Custom platforms
+    ];
+
+    selectors.forEach(sel => {
+      document.querySelectorAll(sel).forEach(el => {
+        if (!containers.includes(el) && isVisible(el)) {
+          containers.push(el);
+        }
+      });
+    });
+
+    // Generic detection: any visible writable text field, grouped by its nearest question-like ancestor.
+    // Deliberately excludes "form" as a fallback container — on many sites the whole page is one
+    // <form>, which would sweep in unrelated fields (search boxes, logins, etc.) as "questions".
+    document.querySelectorAll('textarea, [contenteditable="true"], input[type="text"], input:not([type])').forEach(field => {
+      if (!isVisible(field)) return;
+      if (!isLikelyAnswerField(field)) return;
+      const container = field.closest(
+        '.que, .question, .question-container, .quiz-container, .q-card, fieldset'
+      ) || field.parentElement;
+      if (container && !containers.includes(container)) {
+        containers.push(container);
+      }
+    });
+
+    const parsedQuestions = [];
+    containers.forEach(container => {
+      if (container.hasAttribute("data-qcm-solved") || container.hasAttribute("data-qcm-solving")) {
+        return;
+      }
+
+      const field = container.querySelector('textarea, [contenteditable="true"], input[type="text"], input:not([type])');
+      if (!field || !isVisible(field) || !isLikelyAnswerField(field)) return;
+
+      // Skip fields that already contain an answer
+      const existing = (field.tagName === "TEXTAREA" || field.tagName === "INPUT" ? field.value : field.innerText || "").trim();
+      if (existing.length > 3) return;
+
+      // Skip containers that already have MCQ-style choices (handled elsewhere)
+      const hasChoiceInputs = container.querySelectorAll('input[type="radio"], input[type="checkbox"]').length >= 2;
+      if (hasChoiceInputs) return;
+
+      // Require real extracted question text — never fall back to a placeholder string,
+      // since that would defeat the length check below and send junk to the AI.
+      let questionText = "";
+      const qTextEl = container.querySelector(".qtext, .question_text, .M7yDu, legend, .question-title, .question-header, h2, h3, h4, h5");
+      if (qTextEl) {
+        questionText = extractRichText(qTextEl);
+      } else {
+        questionText = (extractRichText(container).split('\n')[0] || "").trim();
+      }
+
+      if (!questionText || questionText.length < 5) return;
+
+      parsedQuestions.push({ container, questionText, field });
+    });
+
+    return parsedQuestions;
+  }
+
+  // ── Fill a text field/editor with the AI answer ──────────────────────────────
+  function fillField(field, text) {
+    // Disabled/readonly fields aren't meant for direct typing — they're usually
+    // driven by drag-and-drop or a JS framework that will just reset the value.
+    // Disabled fields are also excluded from form submission entirely, so a
+    // "successful" write there wouldn't count anyway. Treat as unfillable.
+    if (field.disabled || field.readOnly) {
+      console.log(`${LOG} field is disabled/readonly, skipping direct fill:`, field);
+      return false;
+    }
+
+    try {
+      if (field.tagName === "TEXTAREA" || field.tagName === "INPUT") {
+        const proto = field.tagName === "TEXTAREA" ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        const nativeSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+        if (nativeSetter) {
+          nativeSetter.call(field, text);
+        } else {
+          field.value = text;
+        }
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        field.dispatchEvent(new Event("change", { bubbles: true }));
+        return field.value.trim().length > 0;
+      }
+
+      if (field.isContentEditable) {
+        field.focus();
+        field.innerText = text;
+        field.dispatchEvent(new Event("input", { bubbles: true }));
+        return field.innerText.trim().length > 0;
+      }
+
+      return false;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  // ── Find nearest writable field for an open-ended selection ─────────────────
+  function findNearestAnswerField(selection) {
+    const fieldSelector = 'textarea, [contenteditable="true"], input[type="text"], input:not([type])';
+    try {
+      const range = selection.getRangeAt(0);
+      let root = range.commonAncestorContainer;
+      if (root.nodeType === Node.TEXT_NODE) root = root.parentElement;
+
+      // Prefer a field inside the same question-like container as the selection
+      // (deliberately excludes "form" — too broad on single-form quiz pages)
+      const container = root.closest('.que, .question, .question-container, .quiz-container, .q-card, fieldset');
+      if (container) {
+        const field = container.querySelector(fieldSelector);
+        if (field && isVisible(field) && isLikelyAnswerField(field)) return field;
+      }
+
+      // Otherwise, look for the nearest field following the selection in the DOM
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+      let node;
+      let foundRangeEnd = false;
+      while ((node = walker.nextNode())) {
+        if (!foundRangeEnd) {
+          if (node === range.endContainer || (range.endContainer.nodeType === Node.TEXT_NODE && node.contains(range.endContainer))) {
+            foundRangeEnd = true;
+          }
+          continue;
+        }
+        if (node.matches?.(fieldSelector) && isVisible(node) && isLikelyAnswerField(node)) return node;
+      }
+
+      // Last resort: if there's exactly one candidate field on the page, use it
+      const all = Array.from(document.querySelectorAll(fieldSelector)).filter(f => isVisible(f) && isLikelyAnswerField(f));
+      if (all.length === 1) return all[0];
+
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  // ── Solve an Open-Ended Selection (Ctrl-tap on a write-in question) ──────────
+  async function solveOpenEndedSelection(selection, selectedText) {
+    if (selectedText.length < 5) return;
+
+    const field = findNearestAnswerField(selection);
+    console.log(`${LOG} open-ended mode — nearest answer field:`, field);
+
+    try {
+      const result = await chrome.runtime.sendMessage({
+        type: "ASK_GROQ_ESSAY",
+        payload: {
+          question: selectedText,
+          apiKey,
+          model,
+          context: {
+            title: document.title || "",
+            domain: window.location.hostname || ""
+          }
+        }
+      });
+
+      console.log(`${LOG} ASK_GROQ_ESSAY result:`, result);
+
+      if (!result.success || !result.data.answer) {
+        showFloatingAnswer(selectedText.slice(0, 150), `AI request failed: ${result.error || "no answer returned"}`);
+        return;
+      }
+
+      const filled = field ? fillField(field, result.data.answer) : false;
+      console.log(`${LOG} filled open-ended field: ${filled}`);
+      if (!filled) {
+        showFloatingAnswer(selectedText.slice(0, 150), result.data.answer);
+      }
+    } catch (err) {
+      console.error(`${LOG} open-ended solve failed:`, err);
+    }
+  }
+
+  // ── Solve Essay/"Rédaction" Questions Sequentially ───────────────────────────
+  async function solveEssayQuestionsSequentially(qObjects) {
+    if (!apiKey || qObjects.length === 0) return;
+
+    console.log(`${LOG} solving ${qObjects.length} essay/write-in question(s)`);
+
+    for (const qObj of qObjects) {
+      qObj.container.setAttribute("data-qcm-solving", "true");
+
+      try {
+        const result = await chrome.runtime.sendMessage({
+          type: "ASK_GROQ_ESSAY",
+          payload: {
+            question: qObj.questionText,
+            apiKey,
+            model,
+            context: {
+              title: document.title || "",
+              domain: window.location.hostname || ""
+            }
+          }
+        });
+
+        console.log(`${LOG} essay answer for "${qObj.questionText}":`, result);
+
+        if (result.success && result.data.answer) {
+          const filled = fillField(qObj.field, result.data.answer);
+          console.log(`${LOG} filled field: ${filled}`, qObj.field);
+          if (filled) {
+            qObj.container.setAttribute("data-qcm-solved", "true");
+          } else {
+            qObj.container.removeAttribute("data-qcm-solving");
+            showFloatingAnswer(qObj.questionText, result.data.answer);
+          }
+        } else {
+          qObj.container.removeAttribute("data-qcm-solving");
+        }
+      } catch (err) {
+        console.error(`${LOG} essay solve failed:`, err);
+        qObj.container.removeAttribute("data-qcm-solving");
+      }
+
+      await new Promise(r => setTimeout(r, 400));
+    }
+  }
+
   // ── Solve Questions Sequentially ─────────────────────────────────────────────
   async function solveQuestionsSequentially(qObjects, isAuto = false) {
     if (isScanningAndSolving) return;
@@ -295,8 +540,13 @@
     clearTimeout(autoSolveTimeout);
     autoSolveTimeout = setTimeout(() => {
       const questions = scanQuestions();
+      const essayQuestions = scanEssayQuestions();
+      console.log(`${LOG} auto-scan found ${questions.length} MCQ + ${essayQuestions.length} essay/write-in question(s)`);
       if (questions.length > 0) {
         solveQuestionsSequentially(questions, true);
+      }
+      if (essayQuestions.length > 0) {
+        solveEssayQuestionsSequentially(essayQuestions);
       }
     }, 1500);
   }
@@ -318,36 +568,53 @@
   observer.observe(document.body, { childList: true, subtree: true });
 
   // ── Keyboard Selection Solve Listener ────────────────────────────────────────
-  document.addEventListener("keydown", async (e) => {
-    if (e.key !== "Control" && !(e.ctrlKey && e.key.toLowerCase() === "w")) return;
+  // Triggers on a standalone tap of Ctrl (pressed and released with no other key
+  // held in between), so it doesn't hijack normal combos like Ctrl+C/Ctrl+F/Ctrl+T.
+  let ctrlUsedInCombo = false;
 
-    e.preventDefault();
-    e.stopPropagation();
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Control") {
+      ctrlUsedInCombo = false;
+    } else if (e.ctrlKey) {
+      ctrlUsedInCombo = true;
+    }
+  }, true);
+
+  document.addEventListener("keyup", async (e) => {
+    if (e.key !== "Control" || ctrlUsedInCombo) return;
+
+    console.log(`${LOG} Ctrl tap detected`);
 
     if (!apiKey) {
-      console.error("QCM AI Solver: API Key is missing.");
+      console.error(`${LOG} API key is missing — set it in the extension popup first.`);
       return;
     }
 
     const selection = window.getSelection();
     const selectedText = selection?.toString().trim();
+    console.log(`${LOG} selection length: ${selectedText ? selectedText.length : 0}`, selectedText);
 
     if (!selectedText || selectedText.length < 10) {
+      console.warn(`${LOG} selection too short (<10 chars) — select the question + choices first, then tap Ctrl.`);
       return;
     }
 
     const parsed = parseSelection(selectedText);
     if (!parsed) {
+      console.warn(`${LOG} parseSelection() failed — no >=2 choices detected, trying open-ended/essay mode instead.`);
+      await solveOpenEndedSelection(selection, selectedText);
       return;
     }
+
+    console.log(`${LOG} parsed question:`, parsed.question, "choices:", parsed.choices.map(c => c.text));
 
     try {
       const result = await chrome.runtime.sendMessage({
         type: "ASK_GROQ",
-        payload: { 
-          question: parsed.question, 
-          choices: parsed.choices, 
-          apiKey, 
+        payload: {
+          question: parsed.question,
+          choices: parsed.choices,
+          apiKey,
           model,
           context: {
             title: document.title || "",
@@ -356,28 +623,128 @@
         }
       });
 
+      console.log(`${LOG} ASK_GROQ result:`, result);
+
       if (!result.success) {
-        console.error("QCM AI Solver: API error", result.error);
+        console.error(`${LOG} API error:`, result.error);
+        showFloatingAnswer(parsed.question, `AI request failed: ${result.error}`);
         return;
       }
 
       const { letters } = result.data;
       if (!letters.length) {
+        console.warn(`${LOG} AI response had no parseable answer letters.`, result.data);
         return;
       }
 
-      markAnswersInDOM(selection, parsed, letters);
+      const markedCount = markAnswersInDOM(selection, parsed, letters);
+      console.log(`${LOG} letters: ${letters.join(",")} — marked ${markedCount} element(s) in the DOM`);
+      if (!markedCount) {
+        const answerText = letters
+          .map(letter => {
+            const idx = letter.charCodeAt(0) - 65;
+            const choice = parsed.choices[idx];
+            return choice ? `${letter}) ${choice.text}` : letter;
+          })
+          .join(", ");
+        showFloatingAnswer(parsed.question, answerText);
+      }
     } catch (err) {
-      console.error("QCM AI Solver: request failed", err);
+      console.error(`${LOG} request failed:`, err);
     }
   }, true);
 
+  // ── Floating On-Page Answer Toast (fallback when we can't fill a field) ──────
+  function showFloatingAnswer(question, answer) {
+    let container = document.getElementById("qcm-solver-toast-container");
+    if (!container) {
+      container = document.createElement("div");
+      container.id = "qcm-solver-toast-container";
+      Object.assign(container.style, {
+        position: "fixed",
+        bottom: "16px",
+        right: "16px",
+        zIndex: "2147483647",
+        display: "flex",
+        flexDirection: "column-reverse",
+        gap: "8px",
+        maxWidth: "340px",
+        fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif"
+      });
+      (document.body || document.documentElement).appendChild(container);
+    }
+
+    const isDarkMode = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const bg = isDarkMode ? "#18181b" : "#ffffff";
+    const fg = isDarkMode ? "#e4e4e7" : "#18181b";
+    const sub = isDarkMode ? "#a1a1aa" : "#52525b";
+    const border = isDarkMode ? "#3f3f46" : "#e4e4e7";
+
+    const toast = document.createElement("div");
+    Object.assign(toast.style, {
+      background: bg,
+      color: fg,
+      border: `1px solid ${border}`,
+      borderRadius: "10px",
+      padding: "10px 24px 10px 12px",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
+      fontSize: "13px",
+      lineHeight: "1.45",
+      position: "relative",
+      pointerEvents: "auto"
+    });
+
+    const closeBtn = document.createElement("span");
+    closeBtn.textContent = "×";
+    Object.assign(closeBtn.style, {
+      position: "absolute",
+      top: "4px",
+      right: "8px",
+      cursor: "pointer",
+      fontSize: "16px",
+      lineHeight: "1",
+      opacity: "0.6"
+    });
+    closeBtn.addEventListener("click", () => toast.remove());
+
+    const qEl = document.createElement("div");
+    qEl.textContent = question;
+    Object.assign(qEl.style, { color: sub, fontSize: "12px", marginBottom: "4px" });
+
+    const aEl = document.createElement("div");
+    aEl.textContent = answer;
+    Object.assign(aEl.style, { fontWeight: "600" });
+
+    toast.appendChild(closeBtn);
+    toast.appendChild(qEl);
+    toast.appendChild(aEl);
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.transition = "opacity 0.4s ease";
+      toast.style.opacity = "0";
+      setTimeout(() => toast.remove(), 400);
+    }, 25000);
+  }
+
   // ── Parse Selection Text ─────────────────────────────────────────────────────
   function parseSelection(text) {
-    const lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
-    if (lines.length < 3) return null;
+    let lines = text.split(/\n+/).map(l => l.trim()).filter(Boolean);
 
     const labelPattern = /^([A-Za-z][\.\)]\s*|[0-9]+[\.\)]\s*|[-•–]\s+|\[[ xX]?\]\s*|\([ xX*]?\)\s*)/;
+
+    // Some quiz layouts (inline/flex option lists) copy as a single line with no
+    // breaks between the question and each choice. Reconstruct line breaks by
+    // splitting right before each detected choice label (e.g. "... B) Berlin").
+    if (lines.length < 3) {
+      const inlineLabelPattern = /(?:^|\s)([A-Za-z][\.\)]\s+|[0-9]+[\.\)]\s+)/g;
+      const withBreaks = text.replace(inlineLabelPattern, (_, label) => `\n${label}`);
+      const altLines = withBreaks.split(/\n+/).map(l => l.trim()).filter(Boolean);
+      if (altLines.length > lines.length) lines = altLines;
+    }
+
+    if (lines.length < 3) return null;
+
     const labeledLines = lines.filter(l => labelPattern.test(l));
 
     let question, choices;
@@ -499,13 +866,16 @@
   chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === "GET_PAGE_STATUS") {
       const questions = scanQuestions();
-      sendResponse({ count: questions.length });
+      const essayQuestions = scanEssayQuestions();
+      sendResponse({ count: questions.length + essayQuestions.length });
       return true;
     }
     if (message.type === "SOLVE_PAGE") {
       const questions = scanQuestions();
       solveQuestionsSequentially(questions, false);
-      sendResponse({ success: true, count: questions.length });
+      const essayQuestions = scanEssayQuestions();
+      solveEssayQuestionsSequentially(essayQuestions);
+      sendResponse({ success: true, count: questions.length + essayQuestions.length });
       return true;
     }
   });

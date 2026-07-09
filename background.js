@@ -8,6 +8,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(err => sendResponse({ success: false, error: err.message }));
     return true; // keep channel open for async response
   }
+  if (message.type === "ASK_GROQ_ESSAY") {
+    handleGroqEssayRequest(message.payload)
+      .then(result => sendResponse({ success: true, data: result }))
+      .catch(err => sendResponse({ success: false, error: err.message }));
+    return true; // keep channel open for async response
+  }
 });
 
 async function handleGroqRequest({ question, choices, apiKey, model, context }) {
@@ -103,8 +109,60 @@ Let's think step-by-step:`;
   chrome.storage.local.set({
     lastQuestion: question,
     lastExplanation: explanation || "No explanation provided.",
-    lastAnswers: letters
+    lastAnswers: letters,
+    lastType: "mcq"
   });
 
   return { letters, explanation, raw };
+}
+
+// ── Open-Ended / "Rédaction" (Essay) Questions ────────────────────────────────
+async function handleGroqEssayRequest({ question, apiKey, model, context }) {
+  const systemPrompt = `You are an elite academic assistant that writes model answers for open-ended, essay, and short-answer ("rédaction") questions.
+Write a clear, well-structured, correct answer to the question, in the same language as the question.
+Do not include any preamble like "Here is the answer" — output only the answer text itself, ready to be submitted as-is.`;
+
+  let contextStr = "";
+  if (context && (context.title || context.domain)) {
+    contextStr = `Context: This question is part of a quiz on the website "${context.domain || 'unknown'}" titled "${context.title || 'unknown'}".\n\n`;
+  }
+
+  const userPrompt = `${contextStr}Question: ${question}\n\nWrite the full answer:`;
+
+  const response = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${apiKey}`
+    },
+    body: JSON.stringify({
+      model: model || "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt }
+      ],
+      temperature: 0.3,
+      max_tokens: 1500
+    })
+  });
+
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Groq API error ${response.status}: ${errText}`);
+  }
+
+  const data = await response.json();
+  let raw = data.choices?.[0]?.message?.content ?? "";
+
+  // Strip DeepSeek R1-style reasoning tags, keep only the final answer text
+  const answer = raw.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<[^>]*>/g, "").trim();
+
+  chrome.storage.local.set({
+    lastQuestion: question,
+    lastExplanation: answer || "No answer provided.",
+    lastAnswers: [],
+    lastType: "essay"
+  });
+
+  return { answer };
 }

@@ -23,10 +23,14 @@ chrome.storage.sync.get(["groqApiKey", "groqModel", "autoMode"], (r) => {
 
 // Load Latest AI Explanation
 function updateExplanationCard() {
-  chrome.storage.local.get(["lastQuestion", "lastExplanation", "lastAnswers"], (r) => {
+  chrome.storage.local.get(["lastQuestion", "lastExplanation", "lastAnswers", "lastType"], (r) => {
     if (r.lastExplanation && r.lastQuestion) {
       expQuestion.textContent = r.lastQuestion;
-      expAnswers.textContent = r.lastAnswers && r.lastAnswers.length ? r.lastAnswers.join(", ") : "None";
+      if (r.lastAnswers && r.lastAnswers.length) {
+        expAnswers.textContent = r.lastAnswers.join(", ");
+      } else {
+        expAnswers.textContent = r.lastType === "essay" ? "Written Answer" : "None";
+      }
       expText.textContent = r.lastExplanation;
       explanationCard.classList.remove("hidden");
     } else {
