@@ -20,32 +20,58 @@
       </div>
       <div>
         <h1>QCM Solver</h1>
-        <p class="subtitle">Groq AI Engine</p>
+        <p class="subtitle" id="providerSubtitle">Lightning AI Engine</p>
       </div>
-    </div>
-
-    <!-- Active Solve Controls -->
-    <div class="card active-solve-card">
-      <div class="status-row">
-        <span class="status-label">Page Status</span>
-        <span id="pageQuestionsCount" class="badge">Checking...</span>
-      </div>
-      <button id="solvePageBtn" class="action-btn">Solve Entire Page</button>
     </div>
 
     <!-- Main Settings Form -->
     <div class="card">
-      <div class="field">
-        <label for="apiKey">Groq API Key</label>
-        <div class="input-row">
-          <input type="password" id="apiKey" placeholder="gsk_..." autocomplete="off" />
-          <button id="toggleKey" class="icon-btn" title="Show/Hide">👁</button>
+      <div class="status-row">
+        <span class="status-label">Status</span>
+        <span id="keyStatusBadge" class="badge">Checking...</span>
+      </div>
+
+      <!-- Provider Switch -->
+      <div class="field-row">
+        <div class="field-desc">
+          <span class="field-title">Provider</span>
+          <span class="field-hint" id="providerHint">Lightning AI (default)</span>
         </div>
-        <span class="hint"><a href="https://console.groq.com/keys" target="_blank">Get free key →</a></span>
+        <label class="switch">
+          <input type="checkbox" id="providerToggle" />
+          <span class="slider"></span>
+        </label>
       </div>
 
       <div class="field">
-        <label for="model">AI Model</label>
+        <label for="apiKey" id="apiKeyLabel">Lightning AI API Key</label>
+        <div class="input-row">
+          <input type="password" id="apiKey" placeholder="lgt_..." autocomplete="off" />
+          <button id="toggleKey" class="icon-btn" title="Show/Hide">👁</button>
+        </div>
+        <span class="hint" id="apiKeyHint"><a href="https://lightning.ai/" target="_blank">Get your Lightning AI key →</a></span>
+      </div>
+
+      <div class="field" id="lightningModelField">
+        <label for="lightningModel">Lightning AI Model</label>
+        <select id="lightningModel">
+          <option value="openai/gpt-5.6-sol">GPT 5.6 Sol (OpenAI ⭐)</option>
+          <option value="openai/gpt-5.5-2026-04-23">GPT 5.5 (OpenAI)</option>
+          <option value="openai/gpt-4o">GPT 4 (OpenAI)</option>
+          <option value="openai/gpt-4-turbo">GPT 4 Turbo (OpenAI)</option>
+          <option value="anthropic/claude-opus-4-8">Claude Opus 4.8 (Anthropic 🌟)</option>
+          <option value="anthropic/claude-opus-4-7">Claude Opus 4.7 (Anthropic)</option>
+          <option value="anthropic/claude-opus-4-6">Claude Opus 4.6 (Anthropic)</option>
+          <option value="anthropic/claude-opus-4-5">Claude Opus 4.5 (Anthropic)</option>
+          <option value="anthropic/claude-opus-4-1">Claude Opus 4.1 (Anthropic)</option>
+          <option value="anthropic/claude-fable-5">Claude Fable 5 (Anthropic)</option>
+        </select>
+        <span class="hint">Not sure a model ID is exactly right? Type a custom one below.</span>
+        <input type="text" id="lightningModelCustom" placeholder="Or type a custom model ID…" autocomplete="off" />
+      </div>
+
+      <div class="field hidden" id="groqModelField">
+        <label for="model">Groq Model</label>
         <select id="model">
           <option value="llama-3.3-70b-versatile">LLaMA 3.3 70B (Best Quality ⭐)</option>
           <option value="meta-llama/llama-4-scout-17b-16e-instruct">LLaMA 4 Scout (State of the Art 🌟)</option>
@@ -57,43 +83,57 @@
         </select>
       </div>
 
-      <!-- Auto Mode Switch -->
-      <div class="field-row">
-        <div class="field-desc">
-          <span class="field-title">Auto-Solve Page</span>
-          <span class="field-hint">Solve questions automatically on load</span>
-        </div>
-        <label class="switch">
-          <input type="checkbox" id="autoMode" />
-          <span class="slider"></span>
-        </label>
-      </div>
-
       <button id="saveBtn" class="save-btn">Save Settings</button>
       <div id="status" class="status-msg hidden"></div>
     </div>
 
-    <!-- AI Explanation Card (Hidden by default, shown when explanation exists) -->
-    <div id="explanationCard" class="card explanation-card hidden">
-      <div class="explanation-header">
-        <span class="explanation-title">Last Solved Explanation</span>
-        <span class="explanation-sub">Step-by-Step AI Reasoning</span>
+    <!-- Image Provider (Vision) — screenshot transcription, independent of answer provider -->
+    <div class="card">
+      <div class="status-row">
+        <span class="status-label">Image Provider</span>
+        <span id="openaiStatusBadge" class="badge">Checking...</span>
       </div>
-      <div class="explanation-content">
-        <div class="question-quote">
-          <strong>Q:</strong> <span id="expQuestion">...</span>
+
+      <!-- Detection Method Switch: DOM scan vs OpenAI Vision screenshot -->
+      <div class="field-row">
+        <div class="field-desc">
+          <span class="field-title">Detection Method</span>
+          <span class="field-hint" id="detectionHint">DOM scan (no selection)</span>
         </div>
-        <div class="explanation-reasoning">
-          <strong>Answers:</strong> <span id="expAnswers" class="exp-answers-badge">...</span>
-          <p id="expText">...</p>
-        </div>
+        <label class="switch">
+          <input type="checkbox" id="detectionToggle" />
+          <span class="slider"></span>
+        </label>
       </div>
+
+      <div class="field hidden" id="openaiKeyField">
+        <label for="openaiApiKey">OpenAI API Key</label>
+        <div class="input-row">
+          <input type="password" id="openaiApiKey" placeholder="sk-..." autocomplete="off" />
+          <button id="toggleOpenaiKey" class="icon-btn" title="Show/Hide">👁</button>
+        </div>
+        <span class="hint"><a href="https://platform.openai.com/api-keys" target="_blank">Get your OpenAI key →</a></span>
+      </div>
+
+      <div class="field hidden" id="openaiModelField">
+        <label for="openaiModel">Vision Model</label>
+        <select id="openaiModel">
+          <option value="gpt-4o-mini">GPT-4o mini (Fast ⚡)</option>
+          <option value="gpt-4o">GPT-4o (Best Accuracy ⭐)</option>
+        </select>
+        <span class="hint">Used only to transcribe the screenshot into text — answers still come from your Groq/Lightning provider above.</span>
+      </div>
+
+      <button id="saveOpenaiBtn" class="save-btn">Save Image Provider</button>
+      <div id="openaiStatus" class="status-msg hidden"></div>
     </div>
 
     <!-- Footer / Guide -->
     <div class="footer">
       <div class="shortcut-tip">
-        Shortcut: Select question + options → Tap <kbd>Ctrl</kbd>
+        Shortcut: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> on Mac)<br />
+        With a selection: solves just that text.<br />
+        Without one: uses your chosen Detection Method above (DOM scan or OpenAI Vision screenshot).
       </div>
     </div>
   </div>

@@ -2,15 +2,41 @@
   "manifest_version": 3,
   "name": "QCM AI Solver",
   "version": "1.0",
-  "description": "Automatically solves QCM quizzes using Groq AI — works silently in the background",
+  "description": "Automatically solves QCM quizzes using Groq/Lightning AI, with optional OpenAI Vision screenshot transcription — works silently in the background",
   "permissions": [
     "activeTab",
+    "tabs",
     "storage",
-    "scripting"
+    "scripting",
+    "clipboardRead",
+    "clipboardWrite"
   ],
   "host_permissions": [
     "<all_urls>"
   ],
+  "commands": {
+    "solve-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+X",
+        "mac": "Command+Shift+X"
+      },
+      "description": "Solve the current selection or page with Groq AI"
+    },
+    "copy-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "Copy the current page selection to the clipboard"
+    },
+    "paste-clipboard": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+L",
+        "mac": "Command+Shift+L"
+      },
+      "description": "Paste clipboard content into the focused field"
+    }
+  },
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
