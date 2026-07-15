@@ -18,11 +18,16 @@
         <span class="logo-dot"></span>
         <span class="logo-dot"></span>
       </div>
-      <div>
+      <div class="header-text">
         <h1>QCM Solver</h1>
         <p class="subtitle" id="providerSubtitle">Lightning AI Engine</p>
       </div>
+      <label class="switch switch-enable" title="Enable/disable the extension">
+        <input type="checkbox" id="extensionEnabledToggle" />
+        <span class="slider"></span>
+      </label>
     </div>
+    <div class="enable-hint" id="enableHint">Extension active on all pages</div>
 
     <!-- Main Settings Form -->
     <div class="card">
@@ -131,9 +136,27 @@
     <!-- Footer / Guide -->
     <div class="footer">
       <div class="shortcut-tip">
-        Shortcut: <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> (<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> on Mac)<br />
-        With a selection: solves just that text.<br />
-        Without one: uses your chosen Detection Method above (DOM scan or OpenAI Vision screenshot).
+        <div class="shortcut-entry">
+          <span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd> <span class="shortcut-mac">(<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>X</kbd>)</span></span>
+          <span class="shortcut-label">Solve</span>
+        </div>
+        <div class="shortcut-detail">
+          Clipboard has an image → answers it via OpenAI Vision.<br />
+          Text selected → the AI reads and answers everything in it.<br />
+          Nothing selected → uses your Detection Method above (DOM scan or a full-page Vision screenshot).
+        </div>
+
+        <div class="shortcut-entry">
+          <span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd> <span class="shortcut-mac">(<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>K</kbd>)</span></span>
+          <span class="shortcut-label">Copy selection</span>
+        </div>
+        <div class="shortcut-detail">Copies the currently selected text to your clipboard.</div>
+
+        <div class="shortcut-entry">
+          <span class="shortcut-keys"><kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd> <span class="shortcut-mac">(<kbd>⌘</kbd>+<kbd>Shift</kbd>+<kbd>L</kbd>)</span></span>
+          <span class="shortcut-label">Paste</span>
+        </div>
+        <div class="shortcut-detail">Pastes your clipboard into the currently focused field.</div>
       </div>
     </div>
   </div>

@@ -1,5 +1,8 @@
 // popup.js — Settings-only popup: provider switch (Lightning AI default / Groq),
 // per-provider API key + model, and a live config status indicator.
+const extensionEnabledToggle = document.getElementById("extensionEnabledToggle");
+const enableHint = document.getElementById("enableHint");
+
 const apiKeyInput = document.getElementById("apiKey");
 const apiKeyLabel = document.getElementById("apiKeyLabel");
 const apiKeyHint = document.getElementById("apiKeyHint");
@@ -67,6 +70,27 @@ function applyDetectionUI(method) {
   const usesVision = method === "vision";
   openaiKeyField.classList.toggle("hidden", !usesVision);
   openaiModelField.classList.toggle("hidden", !usesVision);
+}
+
+// ── Load Extension Enabled State ──────────────────────────────────────────────
+chrome.storage.sync.get(["extensionEnabled"], (r) => {
+  const enabled = r.extensionEnabled !== false; // default: true
+  extensionEnabledToggle.checked = enabled;
+  applyEnabledUI(enabled);
+});
+
+// ── Extension Enabled Toggle ───────────────────────────────────────────────────
+// Applies immediately (no separate Save button) — this is a simple on/off
+// switch, unlike the API key/model fields which need explicit confirmation.
+extensionEnabledToggle.addEventListener("change", () => {
+  const enabled = extensionEnabledToggle.checked;
+  applyEnabledUI(enabled);
+  chrome.storage.sync.set({ extensionEnabled: enabled });
+});
+
+function applyEnabledUI(enabled) {
+  enableHint.textContent = enabled ? "Extension active on all pages" : "Extension disabled — shortcuts do nothing";
+  enableHint.classList.toggle("disabled", !enabled);
 }
 
 // ── Load Settings ────────────────────────────────────────────────────────────
@@ -154,6 +178,11 @@ chrome.storage.onChanged.addListener((changes, namespace) => {
     chrome.storage.sync.get(["openaiApiKey"], (r) => {
       updateOpenaiKeyStatus(!!r.openaiApiKey, currentDetectionMethod());
     });
+  }
+  if (changes.extensionEnabled) {
+    const enabled = changes.extensionEnabled.newValue !== false;
+    extensionEnabledToggle.checked = enabled;
+    applyEnabledUI(enabled);
   }
 });
 

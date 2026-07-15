@@ -13,6 +13,7 @@
   let openaiApiKey = "";
   let openaiModel = "gpt-4o-mini";
   let detectionMethod = "dom"; // "dom" or "vision" — explicit user choice from popup
+  let extensionEnabled = true; // toggled from the popup; all shortcuts no-op when false
 
   const LOG = "[QCM Solver]";
   console.log(`${LOG} content script loaded — frame: ${window === window.top ? "top" : "iframe"} — url: ${location.href}`);
@@ -324,12 +325,13 @@
     openaiApiKey = r.openaiApiKey || "";
     openaiModel = r.openaiModel || "gpt-4o-mini";
     detectionMethod = r.detectionMethod === "vision" ? "vision" : "dom"; // default: dom scan
-    console.log(`${LOG} settings loaded — provider: ${provider}, apiKey set: ${!!apiKey}, model: ${model}, detectionMethod: ${detectionMethod}, openaiApiKey set: ${!!openaiApiKey}`);
+    extensionEnabled = r.extensionEnabled !== false; // default: true
+    console.log(`${LOG} settings loaded — provider: ${provider}, apiKey set: ${!!apiKey}, model: ${model}, detectionMethod: ${detectionMethod}, openaiApiKey set: ${!!openaiApiKey}, extensionEnabled: ${extensionEnabled}`);
   }
 
   function loadSettings(callback) {
     chrome.storage.sync.get(
-      ["provider", "groqApiKey", "groqModel", "lightningApiKey", "lightningModel", "openaiApiKey", "openaiModel", "detectionMethod"],
+      ["provider", "groqApiKey", "groqModel", "lightningApiKey", "lightningModel", "openaiApiKey", "openaiModel", "detectionMethod", "extensionEnabled"],
       (r) => {
         applySettings(r);
         if (callback) callback();
@@ -971,6 +973,11 @@
   // MCQ + essay/write-in questions. Sends everything in ONE batched Groq request.
   // Never fills or marks form fields — the panel is the only answer surface.
   async function handleTriggerSolve() {
+    if (!extensionEnabled) {
+      console.log(`${LOG} solve shortcut ignored — extension is disabled from the popup.`);
+      return;
+    }
+
     openPanel();
 
     if (!apiKey) {
@@ -1230,6 +1237,11 @@
   // Copies whatever text is currently selected on the page to the clipboard.
   // Independent of the AI — a plain convenience shortcut.
   async function handleCopySelection() {
+    if (!extensionEnabled) {
+      console.log(`${LOG} copy-selection shortcut ignored — extension is disabled from the popup.`);
+      return;
+    }
+
     const selectedText = window.getSelection()?.toString();
 
     if (!selectedText || !selectedText.trim()) {
@@ -1252,6 +1264,11 @@
   // or contenteditable field. Does nothing (with a toast explaining why) if no
   // such field is focused — never guesses a target field on its own.
   async function handlePasteClipboard() {
+    if (!extensionEnabled) {
+      console.log(`${LOG} paste-clipboard shortcut ignored — extension is disabled from the popup.`);
+      return;
+    }
+
     const el = document.activeElement;
     const isTextField = el && (
       el.tagName === "TEXTAREA" ||

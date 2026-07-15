@@ -46,6 +46,11 @@ body {
   padding-bottom: 6px;
 }
 
+.header-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .logo {
   display: flex;
   gap: 4px;
@@ -298,6 +303,29 @@ input:checked + .slider:before {
   transform: translateX(18px);
 }
 
+/* Enable/Disable Switch — distinct semantics from the provider/detection
+   switches above (which just pick between two equally-valid modes): checked
+   here means "extension active" (green), unchecked means "disabled" (muted
+   red-gray), so the color must communicate on/off rather than mode A/B. */
+.switch-enable input:checked + .slider {
+  background-color: #10b981;
+}
+
+.switch-enable .slider {
+  background-color: #52525b;
+}
+
+.enable-hint {
+  font-size: 10px;
+  color: #6b7280;
+  padding-bottom: 8px;
+  margin-top: -6px;
+}
+
+.enable-hint.disabled {
+  color: #fca5a5;
+}
+
 /* Save Settings Button */
 .save-btn {
   background: #f3f4f6;
@@ -364,6 +392,47 @@ input:checked + .slider:before {
   font-size: 10px;
   color: #4b5563;
   line-height: 1.5;
+  text-align: left;
+}
+
+.shortcut-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.shortcut-entry:first-child {
+  margin-top: 0;
+}
+
+.shortcut-keys {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+}
+
+.shortcut-mac {
+  color: #4b5563;
+  margin-left: 2px;
+}
+
+.shortcut-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: #a78bfa;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  flex-shrink: 0;
+}
+
+.shortcut-detail {
+  font-size: 10px;
+  color: #6b7280;
+  line-height: 1.5;
+  margin-top: 3px;
 }
 
 kbd {
